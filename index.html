@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Héctor Admin | Panel Maestro</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
     <style>
         body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
         .card { 
@@ -21,16 +24,20 @@
             gap: 10px; margin-top: 30px; padding: 10px;
         }
         .codigo-item { 
-            background: #2a2a2a; padding: 10px; border-radius: 5px; font-size: 12px; 
+            background: #2a2a2a; padding: 10px; border-radius: 5px; font-size: 11px; 
             border: 1px solid #444; transition: 0.3s; font-weight: bold; color: #eee;
         }
-        .ganador-item { 
-            border: 1px solid #ffd700 !important; color: #ffd700 !important; background: #2c2500;
-        }
+        .ganador-item { border: 1px solid #ffd700 !important; color: #ffd700 !important; background: #2c2500; }
+        
+        /* ESTADO TACHADO (FIREBASE) */
         .tachado { 
-            text-decoration: line-through; color: #ff4444 !important; opacity: 0.4; 
-            border-color: #ff4444 !important; background: #1a0000 !important;
+            text-decoration: line-through; 
+            color: #ffffff !important; 
+            opacity: 0.8; 
+            border-color: #ff4444 !important; 
+            background: #e53935 !important; /* Rojo fuerte */
         }
+        
         #resultado { font-size: 22px; font-weight: bold; margin: 15px 0; min-height: 30px; }
         .resumen { font-size: 14px; color: #aaa; margin-bottom: 10px; }
     </style>
@@ -39,7 +46,7 @@
 
     <div class="card">
         <h1>🛡️ Héctor Control v2.0</h1>
-        <div id="resumen-tanda" class="resumen">Esperando generación...</div>
+        <div id="resumen-tanda" class="resumen">Cargando datos...</div>
         <button id="btnGenerar" onclick="generarNuevos100(true)">GENERAR 100 CÓDIGOS</button>
         <br><br>
         <input type="text" id="admin-input" placeholder="Escribe el código aquí">
@@ -50,148 +57,110 @@
     <div id="grid-codigos"></div>
 
 <script>
-    // Variables globales
-    let listaCodigos = JSON.parse(localStorage.getItem('hector_lista')) || [];
-    let usados = JSON.parse(localStorage.getItem('hector_usados')) || [];
+    // --- CONFIGURACIÓN FIREBASE ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyAJb-fRgRJlMS1AZDmRs1iRZivbVb2xIaY",
+        authDomain: "hector-bites.firebaseapp.com",
+        projectId: "hector-bites",
+        storageBucket: "hector-bites.firebasestorage.app",
+        messagingSenderId: "871681076585",
+        appId: "1:871681076585:web:ef3ead36c2b21ec70021f8"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-    // Función para calcular si un código es ganador (3% de probabilidad)
+    // Variables locales
+    let listaCodigos = JSON.parse(localStorage.getItem('hector_lista')) || [];
+
+    // Probabilidad de ganador (coincide con tu app de ventas)
     function esCodigoGanador(c) {
         let hash = 0;
-        for (let i = 0; i < c.length; i++) {
-            hash = c.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return (Math.abs(hash) % 100) < 3;
+        for (let i = 0; i < c.length; i++) hash = c.charCodeAt(i) + ((hash << 5) - hash);
+        return (Math.abs(hash) % 100) < 10; 
     }
 
     function actualizarVista() {
         const grid = document.getElementById("grid-codigos");
-        const resumenText = document.getElementById("resumen-tanda");
-        
-        // Limpiamos el grid por completo antes de volver a dibujar
         grid.innerHTML = "";
 
         if (listaCodigos.length === 0) {
-            resumenText.innerText = "No hay códigos activos. Presiona el botón verde.";
+            document.getElementById("resumen-tanda").innerText = "Presiona el botón para empezar.";
             return;
         }
-
-        let totalGanadores = 0;
-        let ganadoresTachados = 0;
 
         listaCodigos.forEach(c => {
             const gano = esCodigoGanador(c);
             const div = document.createElement("div");
             div.className = "codigo-item";
             div.innerText = c;
+            div.id = `btn-${c}`; // ID CLAVE para que Firebase lo encuentre
 
             if (gano) {
                 div.classList.add("ganador-item");
                 div.innerText += " ⭐";
-                totalGanadores++;
-                if (usados.includes(c)) ganadoresTachados++;
             }
-
-            if (usados.includes(c)) {
-                div.classList.add("tachado");
-            }
-
             grid.appendChild(div);
         });
 
-        resumenText.innerHTML = `Ganadores: <b>${ganadoresTachados} / ${totalGanadores}</b> | Tachados: <b>${usados.length} / 100</b>`;
+        conectarFirebaseRealtime();
+    }
+
+    // FUNCIÓN CLAVE: Escucha a Firebase y tacha en vivo
+    function conectarFirebaseRealtime() {
+        db.collection("Codigos").onSnapshot((snapshot) => {
+            let totalTachados = 0;
+            snapshot.forEach((doc) => {
+                const codigoID = doc.id;
+                const elemento = document.getElementById(`btn-${codigoID}`);
+                if (elemento) {
+                    elemento.classList.add("tachado");
+                    elemento.innerHTML = "❌ " + codigoID;
+                    totalTachados++;
+                }
+            });
+            document.getElementById("resumen-tanda").innerHTML = `Tachados en Firebase: <b>${totalTachados} / 100</b>`;
+        });
     }
 
     function generarNuevos100(manual) {
-        if (manual && listaCodigos.length > 0 && usados.length < listaCodigos.length) {
-            if (!confirm("Aún hay códigos sin verificar. ¿Seguro que quieres borrar todo y generar nuevos?")) return;
-        }
+        if (manual && !confirm("¿Generar nueva lista? Se borrarán los IDs anteriores.")) return;
 
         const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
         const nums = "23456789";
         listaCodigos = [];
-        usados = [];
 
         while (listaCodigos.length < 100) {
             let c = "HB-" + letras[Math.floor(Math.random()*letras.length)] + 
                     nums[Math.floor(Math.random()*nums.length)] + 
                     letras[Math.floor(Math.random()*letras.length)];
-            
-            if(!listaCodigos.includes(c)) {
-                listaCodigos.push(c);
-            }
+            if(!listaCodigos.includes(c)) listaCodigos.push(c);
         }
 
-        // Guardar y refrescar inmediatamente
         localStorage.setItem('hector_lista', JSON.stringify(listaCodigos));
-        localStorage.setItem('hector_usados', JSON.stringify(usados));
-        
         actualizarVista();
-        
-        const res = document.getElementById("resultado");
-        res.innerHTML = "✨ 100 CÓDIGOS NUEVOS LISTOS";
-        res.style.color = "cyan";
+        document.getElementById("resultado").innerText = "✨ NUEVA TANDA LISTA";
     }
 
-    function checarMaster() {
+    // Función para tachar manualmente desde el panel si es necesario
+    async function checarMaster() {
         const inputField = document.getElementById("admin-input");
         const cod = inputField.value.trim().toUpperCase();
-        const res = document.getElementById("resultado");
-
         if(!cod) return;
-        if(!listaCodigos.includes(cod)) {
-            res.innerHTML = "⚠️ CÓDIGO NO EXISTE";
-            res.style.color = "orange";
-            return;
-        }
-        if(usados.includes(cod)) {
-            res.innerHTML = "⌛ YA FUE USADO";
-            res.style.color = "#888";
-            return;
-        }
 
-        const gano = esCodigoGanador(cod);
-        usados.push(cod);
-        localStorage.setItem('hector_usados', JSON.stringify(usados));
-        
-        inputField.value = "";
-        actualizarVista();
-
-        if(gano) {
-            res.innerHTML = "✅ ¡GANADOR CONFIRMADO! 🎁";
-            res.style.color = "#00ff00";
-        } else {
-            res.innerHTML = "❌ PERDEDOR";
-            res.style.color = "#ff4444";
-        }
-
-        // Auto-Reset si se encuentran todos los ganadores
-        const totalG = listaCodigos.filter(c => esCodigoGanador(c)).length;
-        const tachadosG = usados.filter(c => esCodigoGanador(c)).length;
-        
-        if (totalG > 0 && tachadosG >= totalG) {
-            setTimeout(() => {
-                alert("¡Todos los ganadores encontrados! Generando nueva tanda...");
-                generarNuevos100(false);
-            }, 1000);
+        try {
+            await db.collection("Codigos").doc(cod).set({
+                usado: true,
+                admin: true,
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            inputField.value = "";
+            document.getElementById("resultado").innerText = "✅ TACHADO MANUALMENTE";
+        } catch (e) {
+            alert("Error al conectar con Firebase");
         }
     }
 
-    // Al cargar la página por primera vez
     window.onload = actualizarVista;
-// ESTO VA EN TU PANEL DE CONTROL (ADMIN)
-// Función para que los botones cambien a rojo automáticamente
-db.collection("Codigos").onSnapshot((snapshot) => {
-    snapshot.forEach((doc) => {
-        const codigoUsado = doc.id; // El código (ej: HB-B3N)
-        const boton = document.getElementById(`btn-${codigoUsado}`);
-        
-        if (boton) {
-            boton.style.background = "red"; // Lo tacha en vivo
-            boton.style.color = "white";
-            boton.innerText = "❌ " + codigoUsado;
-        }
-    });
-});
 </script>
 </body>
 </html>
