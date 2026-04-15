@@ -41,7 +41,7 @@
     <div class="card">
         <h1>🛡️ Héctor Control v2.0</h1>
         <div id="resumen-tanda" class="resumen">Esperando generación...</div>
-        <button id="btnGenerar" onclick="generarNuevos100()">GENERAR 100 CÓDIGOS</button>
+        <button id="btnGenerar" onclick="generarNuevos100(true)">GENERAR 100 CÓDIGOS</button>
         <br><br>
         <input type="text" id="admin-input" placeholder="Escribe el código aquí">
         <button onclick="checarMaster()">VERIFICAR Y TACHAR</button>
@@ -54,13 +54,12 @@
     let listaCodigos = JSON.parse(localStorage.getItem('hector_lista')) || [];
     let usados = JSON.parse(localStorage.getItem('hector_usados')) || [];
 
-    // Cargar datos al abrir la página
     actualizarVista();
 
-    function generarNuevos100() {
-        // Solo permite generar si no hay códigos o si ya se usaron los 100 anteriores
-        if (listaCodigos.length > 0 && usados.length < listaCodigos.length) {
-            alert(`¡Alto! Aún te faltan ${listaCodigos.length - usados.length} códigos por verificar de la tanda actual.`);
+    function generarNuevos100(manual = false) {
+        // Si es manual (botón), validar que la tanda terminó
+        if (manual && listaCodigos.length > 0 && usados.length < listaCodigos.length) {
+            alert(`Aún quedan códigos por usar.`);
             return;
         }
 
@@ -70,20 +69,31 @@
         usados = [];
 
         for(let i=0; i<100; i++) {
-            // Genera código aleatorio de 3 dígitos después del HB-
             let c = "HB-" + letras[Math.floor(Math.random()*letras.length)] + 
                     nums[Math.floor(Math.random()*nums.length)] + 
                     letras[Math.floor(Math.random()*letras.length)];
             
-            // Evitar duplicados en la misma tanda
             if(!listaCodigos.includes(c)) {
                 listaCodigos.push(c);
             } else {
-                i--; // Reintentar si salió repetido
+                i--;
             }
         }
 
         guardarYRefrescar();
+        if(!manual) {
+            document.getElementById("resultado").innerHTML = "✨ ¡NUEVA TANDA GENERADA AUTOMÁTICAMENTE!";
+            document.getElementById("resultado").style.color = "cyan";
+        }
+    }
+
+    // Función auxiliar para saber si un código es ganador según la lógica matemática
+    function esCodigoGanador(c) {
+        let hash = 0;
+        for (let i = 0; i < c.length; i++) {
+            hash = c.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return (Math.abs(hash) % 100) < 3;
     }
 
     function checarMaster() {
@@ -93,96 +103,32 @@
 
         if(!cod) return;
 
-        // 1. ¿Existe en la lista de los 100?
         if (!listaCodigos.includes(cod)) {
             res.innerHTML = "⚠️ ESE CÓDIGO NO ES DE ESTA TANDA";
             res.style.color = "orange";
             return;
         }
 
-        // 2. ¿Ya fue usado/tachado antes?
         if (usados.includes(cod)) {
             res.innerHTML = "⌛ CÓDIGO YA FUE USADO ANTES";
             res.style.color = "#aaa";
             return;
         }
 
-        // 3. Aplicar fórmula matemática de premio
-        let hash = 0;
-        for (let i = 0; i < cod.length; i++) {
-            hash = cod.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const esGanador = (Math.abs(hash) % 100) < 3; // Misma probabilidad 3%
-
-        // 4. Agregar a lista de usados y refrescar vista
+        const gano = esCodigoGanador(cod);
         usados.push(cod);
-        guardarYRefrescar();
-        inputField.value = ""; // Limpiar el input
+        inputField.value = ""; 
 
-        if(esGanador) {
+        if(gano) {
             res.innerHTML = "✅ ¡GANADOR CONFIRMADO! 🎁";
             res.style.color = "#00ff00";
         } else {
             res.innerHTML = "❌ PERDEDOR (Sigue intentando)";
             res.style.color = "#ff4444";
         }
-    }
 
-    function guardarYRefrescar() {
-        localStorage.setItem('hector_lista', JSON.stringify(listaCodigos));
-        localStorage.setItem('hector_usados', JSON.stringify(usados));
-        actualizarVista();
-    }
-
-    function actualizarVista() {
-        const grid = document.getElementById("grid-codigos");
-        const btn = document.getElementById("btnGenerar");
-        const resumenText = document.getElementById("resumen-tanda");
-        grid.innerHTML = "";
-
-        let contadorGanadores = 0;
-
-        listaCodigos.forEach(c => {
-            const div = document.createElement("div");
-            
-            // Calcular si es ganador para el modo inspector (estrella)
-            let hash = 0;
-            for (let i = 0; i < c.length; i++) { hash = c.charCodeAt(i) + ((hash << 5) - hash); }
-            const esGanador = (Math.abs(hash) % 100) < 3;
-
-            let clases = "codigo-item";
-            let contenido = c;
-
-            if (esGanador) {
-                clases += " ganador-item";
-                contenido += " ⭐";
-                contadorGanadores++;
-            }
-            if (usados.includes(c)) {
-                clases += " tachado";
-            }
-
-            div.className = clases;
-            div.innerHTML = contenido;
-            grid.appendChild(div);
-        });
-
-        // Actualizar estados del botón y textos
-        if (listaCodigos.length > 0) {
-            const faltan = listaCodigos.length - usados.length;
-            resumenText.innerHTML = `Tanda actual: <b>${listaCodigos.length}</b> códigos | Ganadores con estrella: <b>${contadorGanadores}</b>`;
-            
-            if (faltan > 0) {
-                btn.disabled = true;
-                btn.innerText = `BLOQUEADO: FALTAN ${faltan} CÓDIGOS`;
-            } else {
-                btn.disabled = false;
-                btn.innerText = "¡TANDA TERMINADA! GENERAR OTROS 100";
-            }
-        } else {
-            resumenText.innerText = "No hay códigos activos. Presiona el botón verde.";
-        }
-    }
-</script>
-</body>
-</html>
+        // --- LÓGICA DE AUTO-ACTUALIZACIÓN ---
+        // Contamos cuántos ganadores hay en total en la lista actual
+        const totalGanadoresEnTanda = listaCodigos.filter(c => esCodigoGanador(c)).length;
+        // Contamos cuántos de esos ganadores ya están en la lista de usados
+        const ganadoresUsados = usados.filter(c => esCodigo
