@@ -11,10 +11,9 @@
             border: 2px solid #1b5e20; max-width: 600px; margin: auto; 
             position: sticky; top: 10px; z-index: 10; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        input { padding: 15px; font-size: 20px; width: 70%; border-radius: 10px; border: none; margin-bottom: 15px; text-align: center; text-transform: uppercase; font-weight: bold; }
+        input { padding: 15px; font-size: 20px; width: 70%; border-radius: 10px; border: none; margin-bottom: 15px; text-align: center; text-transform: uppercase; font-weight: bold; background: #333; color: white; }
         button { padding: 12px 20px; font-size: 16px; background: #1b5e20; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 5px; transition: 0.3s; }
         button:hover { background: #2e7d32; }
-        button:disabled { background: #444; cursor: not-allowed; opacity: 0.6; }
         
         #grid-codigos { 
             display: grid; 
@@ -23,10 +22,10 @@
         }
         .codigo-item { 
             background: #2a2a2a; padding: 10px; border-radius: 5px; font-size: 12px; 
-            border: 1px solid #444; transition: 0.3s; font-weight: bold;
+            border: 1px solid #444; transition: 0.3s; font-weight: bold; color: #eee;
         }
         .ganador-item { 
-            border: 1px solid #ffd700 !important; color: #ffd700; background: #2c2500;
+            border: 1px solid #ffd700 !important; color: #ffd700 !important; background: #2c2500;
         }
         .tachado { 
             text-decoration: line-through; color: #ff4444 !important; opacity: 0.4; 
@@ -51,43 +50,11 @@
     <div id="grid-codigos"></div>
 
 <script>
+    // Variables globales
     let listaCodigos = JSON.parse(localStorage.getItem('hector_lista')) || [];
     let usados = JSON.parse(localStorage.getItem('hector_usados')) || [];
 
-    actualizarVista();
-
-    function generarNuevos100(manual = false) {
-        // Si es manual (botón), validar que la tanda terminó
-        if (manual && listaCodigos.length > 0 && usados.length < listaCodigos.length) {
-            alert(`Aún quedan códigos por usar.`);
-            return;
-        }
-
-        const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-        const nums = "23456789";
-        listaCodigos = [];
-        usados = [];
-
-        for(let i=0; i<100; i++) {
-            let c = "HB-" + letras[Math.floor(Math.random()*letras.length)] + 
-                    nums[Math.floor(Math.random()*nums.length)] + 
-                    letras[Math.floor(Math.random()*letras.length)];
-            
-            if(!listaCodigos.includes(c)) {
-                listaCodigos.push(c);
-            } else {
-                i--;
-            }
-        }
-
-        guardarYRefrescar();
-        if(!manual) {
-            document.getElementById("resultado").innerHTML = "✨ ¡NUEVA TANDA GENERADA AUTOMÁTICAMENTE!";
-            document.getElementById("resultado").style.color = "cyan";
-        }
-    }
-
-    // Función auxiliar para saber si un código es ganador según la lógica matemática
+    // Función para calcular si un código es ganador (3% de probabilidad)
     function esCodigoGanador(c) {
         let hash = 0;
         for (let i = 0; i < c.length; i++) {
@@ -96,39 +63,122 @@
         return (Math.abs(hash) % 100) < 3;
     }
 
+    function actualizarVista() {
+        const grid = document.getElementById("grid-codigos");
+        const resumenText = document.getElementById("resumen-tanda");
+        
+        // Limpiamos el grid por completo antes de volver a dibujar
+        grid.innerHTML = "";
+
+        if (listaCodigos.length === 0) {
+            resumenText.innerText = "No hay códigos activos. Presiona el botón verde.";
+            return;
+        }
+
+        let totalGanadores = 0;
+        let ganadoresTachados = 0;
+
+        listaCodigos.forEach(c => {
+            const gano = esCodigoGanador(c);
+            const div = document.createElement("div");
+            div.className = "codigo-item";
+            div.innerText = c;
+
+            if (gano) {
+                div.classList.add("ganador-item");
+                div.innerText += " ⭐";
+                totalGanadores++;
+                if (usados.includes(c)) ganadoresTachados++;
+            }
+
+            if (usados.includes(c)) {
+                div.classList.add("tachado");
+            }
+
+            grid.appendChild(div);
+        });
+
+        resumenText.innerHTML = `Ganadores: <b>${ganadoresTachados} / ${totalGanadores}</b> | Tachados: <b>${usados.length} / 100</b>`;
+    }
+
+    function generarNuevos100(manual) {
+        if (manual && listaCodigos.length > 0 && usados.length < listaCodigos.length) {
+            if (!confirm("Aún hay códigos sin verificar. ¿Seguro que quieres borrar todo y generar nuevos?")) return;
+        }
+
+        const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const nums = "23456789";
+        listaCodigos = [];
+        usados = [];
+
+        while (listaCodigos.length < 100) {
+            let c = "HB-" + letras[Math.floor(Math.random()*letras.length)] + 
+                    nums[Math.floor(Math.random()*nums.length)] + 
+                    letras[Math.floor(Math.random()*letras.length)];
+            
+            if(!listaCodigos.includes(c)) {
+                listaCodigos.push(c);
+            }
+        }
+
+        // Guardar y refrescar inmediatamente
+        localStorage.setItem('hector_lista', JSON.stringify(listaCodigos));
+        localStorage.setItem('hector_usados', JSON.stringify(usados));
+        
+        actualizarVista();
+        
+        const res = document.getElementById("resultado");
+        res.innerHTML = "✨ 100 CÓDIGOS NUEVOS LISTOS";
+        res.style.color = "cyan";
+    }
+
     function checarMaster() {
         const inputField = document.getElementById("admin-input");
         const cod = inputField.value.trim().toUpperCase();
         const res = document.getElementById("resultado");
 
         if(!cod) return;
-
-        if (!listaCodigos.includes(cod)) {
-            res.innerHTML = "⚠️ ESE CÓDIGO NO ES DE ESTA TANDA";
+        if(!listaCodigos.includes(cod)) {
+            res.innerHTML = "⚠️ CÓDIGO NO EXISTE";
             res.style.color = "orange";
             return;
         }
-
-        if (usados.includes(cod)) {
-            res.innerHTML = "⌛ CÓDIGO YA FUE USADO ANTES";
-            res.style.color = "#aaa";
+        if(usados.includes(cod)) {
+            res.innerHTML = "⌛ YA FUE USADO";
+            res.style.color = "#888";
             return;
         }
 
         const gano = esCodigoGanador(cod);
         usados.push(cod);
-        inputField.value = ""; 
+        localStorage.setItem('hector_usados', JSON.stringify(usados));
+        
+        inputField.value = "";
+        actualizarVista();
 
         if(gano) {
             res.innerHTML = "✅ ¡GANADOR CONFIRMADO! 🎁";
             res.style.color = "#00ff00";
         } else {
-            res.innerHTML = "❌ PERDEDOR (Sigue intentando)";
+            res.innerHTML = "❌ PERDEDOR";
             res.style.color = "#ff4444";
         }
 
-        // --- LÓGICA DE AUTO-ACTUALIZACIÓN ---
-        // Contamos cuántos ganadores hay en total en la lista actual
-        const totalGanadoresEnTanda = listaCodigos.filter(c => esCodigoGanador(c)).length;
-        // Contamos cuántos de esos ganadores ya están en la lista de usados
-        const ganadoresUsados = usados.filter(c => esCodigo
+        // Auto-Reset si se encuentran todos los ganadores
+        const totalG = listaCodigos.filter(c => esCodigoGanador(c)).length;
+        const tachadosG = usados.filter(c => esCodigoGanador(c)).length;
+        
+        if (totalG > 0 && tachadosG >= totalG) {
+            setTimeout(() => {
+                alert("¡Todos los ganadores encontrados! Generando nueva tanda...");
+                generarNuevos100(false);
+            }, 1000);
+        }
+    }
+
+    // Al cargar la página por primera vez
+    window.onload = actualizarVista;
+
+</script>
+</body>
+</html>
