@@ -1,1 +1,48 @@
 
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Héctor Admin | Verificador Maestro</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; background: #121212; color: white; }
+        .card { background: #1e1e1e; padding: 30px; border-radius: 20px; border: 2px solid #1b5e20; max-width: 400px; margin: auto; }
+        input { padding: 15px; font-size: 20px; width: 80%; border-radius: 10px; border: none; margin-bottom: 20px; text-align: center; text-transform: uppercase; }
+        button { padding: 15px 30px; font-size: 18px; background: #1b5e20; color: white; border: none; border-radius: 10px; cursor: pointer; width: 85%; font-weight: bold; }
+        #resultado { margin-top: 30px; font-size: 28px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🛡️ Héctor Control</h1>
+        <p>Pega el código que te mandaron:</p>
+        <input type="text" id="admin-input" placeholder="Pegar código">
+        <button onclick="checarMaster()">VERIFICAR PREMIO</button>
+        <div id="resultado"></div>
+    </div>
+
+<script>
+    function checarMaster() {
+        const cod = document.getElementById("admin-input").value.trim().toUpperCase();
+        if(!cod) return;
+
+        // Misma fórmula matemática (Seed)
+        let hash = 0;
+        for (let i = 0; i < cod.length; i++) {
+            hash = cod.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const esGanador = (Math.abs(hash) % 100) < 3;
+        
+        const res = document.getElementById("resultado");
+        if(esGanador) {
+            res.innerHTML = "✅ ¡GANADOR REAL!<br><span style='font-size:16px; color:gray;'>Dale su galleta ahora.</span>";
+            res.style.color = "#00ff00";
+        } else {
+            res.innerHTML = "❌ CÓDIGO FALSO / PERDEDOR";
+            res.style.color = "#ff4444";
+        }
+    }
+</script>
+</body>
+</html>
