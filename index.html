@@ -178,7 +178,20 @@
 
     // Al cargar la página por primera vez
     window.onload = actualizarVista;
-
+// ESTO VA EN TU PANEL DE CONTROL (ADMIN)
+// Función para que los botones cambien a rojo automáticamente
+db.collection("Codigos").onSnapshot((snapshot) => {
+    snapshot.forEach((doc) => {
+        const codigoUsado = doc.id; // El código (ej: HB-B3N)
+        const boton = document.getElementById(`btn-${codigoUsado}`);
+        
+        if (boton) {
+            boton.style.background = "red"; // Lo tacha en vivo
+            boton.style.color = "white";
+            boton.innerText = "❌ " + codigoUsado;
+        }
+    });
+});
 </script>
 </body>
 </html>
