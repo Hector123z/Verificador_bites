@@ -1,46 +1,131 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Héctor Admin | Verificador Maestro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Héctor Admin | Panel de Control</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background: #121212; color: white; }
-        .card { background: #1e1e1e; padding: 30px; border-radius: 20px; border: 2px solid #1b5e20; max-width: 400px; margin: auto; }
-        input { padding: 15px; font-size: 20px; width: 80%; border-radius: 10px; border: none; margin-bottom: 20px; text-align: center; text-transform: uppercase; }
-        button { padding: 15px 30px; font-size: 18px; background: #1b5e20; color: white; border: none; border-radius: 10px; cursor: pointer; width: 85%; font-weight: bold; }
-        #resultado { margin-top: 30px; font-size: 28px; font-weight: bold; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 20px; border: 2px solid #1b5e20; max-width: 600px; margin: auto; position: sticky; top: 10px; z-index: 10; }
+        input { padding: 15px; font-size: 20px; width: 70%; border-radius: 10px; border: none; margin-bottom: 15px; text-align: center; text-transform: uppercase; }
+        button { padding: 12px 20px; font-size: 16px; background: #1b5e20; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 5px; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        
+        #grid-codigos { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); 
+            gap: 10px; margin-top: 30px; padding: 10px;
+        }
+        .codigo-item { 
+            background: #2a2a2a; padding: 10px; border-radius: 5px; font-size: 13px; border: 1px solid #444; 
+        }
+        .tachado { 
+            text-decoration: line-through; color: #ff4444; opacity: 0.5; border-color: #ff4444; background: #1a0000;
+        }
+        #resultado { font-size: 24px; font-weight: bold; margin: 15px 0; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>🛡️ Héctor Control</h1>
-        <p>Pega el código que te mandaron:</p>
-        <input type="text" id="admin-input" placeholder="Pegar código">
-        <button onclick="checarMaster()">VERIFICAR PREMIO</button>
+        <h1>🛡️ Panel Héctor Bites</h1>
+        <button id="btnGenerar" onclick="generarNuevos100()">GENERAR 100 CÓDIGOS</button>
+        <br><br>
+        <input type="text" id="admin-input" placeholder="Código del alumno">
+        <button onclick="checarMaster()">VERIFICAR</button>
         <div id="resultado"></div>
     </div>
 
+    <div id="grid-codigos"></div>
+
 <script>
+    let listaCodigos = JSON.parse(localStorage.getItem('hector_lista')) || [];
+    let usados = JSON.parse(localStorage.getItem('hector_usados')) || [];
+
+    // Al cargar la página, dibujar lo que ya existe
+    actualizarVista();
+
+    function generarNuevos100() {
+        if (usados.length < listaCodigos.length && listaCodigos.length > 0) {
+            alert("Aún tienes códigos sin usar. Táchalos todos antes de generar nuevos.");
+            return;
+        }
+
+        const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const nums = "23456789";
+        listaCodigos = [];
+        usados = [];
+
+        for(let i=0; i<100; i++) {
+            let c = "HB-" + letras[Math.floor(Math.random()*letras.length)] + 
+                    nums[Math.floor(Math.random()*nums.length)] + 
+                    letras[Math.floor(Math.random()*letras.length)];
+            listaCodigos.push(c);
+        }
+
+        guardarYRefrescar();
+    }
+
     function checarMaster() {
         const cod = document.getElementById("admin-input").value.trim().toUpperCase();
         if(!cod) return;
 
-        // Misma fórmula matemática (Seed)
+        const res = document.getElementById("resultado");
+        
+        // 1. Verificar si el código existe en tu lista actual
+        if (!listaCodigos.includes(cod)) {
+            res.innerHTML = "❌ NO EXISTE EN LA LISTA";
+            res.style.color = "orange";
+            return;
+        }
+
+        // 2. Aplicar fórmula matemática de premio
         let hash = 0;
         for (let i = 0; i < cod.length; i++) {
             hash = cod.charCodeAt(i) + ((hash << 5) - hash);
         }
-        const esGanador = (Math.abs(hash) % 100) < 3;
-        
-        const res = document.getElementById("resultado");
+        const esGanador = (Math.abs(hash) % 100) < 3; // 3% probabilidad
+
+        // 3. Tachar código automáticamente
+        if (!usados.includes(cod)) {
+            usados.push(cod);
+            guardarYRefrescar();
+        }
+
         if(esGanador) {
-            res.innerHTML = "✅ ¡GANADOR REAL!<br><span style='font-size:16px; color:gray;'>Dale su galleta ahora.</span>";
+            res.innerHTML = "✅ ¡GANADOR REAL!";
             res.style.color = "#00ff00";
         } else {
-            res.innerHTML = "❌ CÓDIGO FALSO / PERDEDOR";
+            res.innerHTML = "❌ PERDEDOR";
             res.style.color = "#ff4444";
+        }
+    }
+
+    function guardarYRefrescar() {
+        localStorage.setItem('hector_lista', JSON.stringify(listaCodigos));
+        localStorage.setItem('hector_usados', JSON.stringify(usados));
+        actualizarVista();
+    }
+
+    function actualizarVista() {
+        const grid = document.getElementById("grid-codigos");
+        const btn = document.getElementById("btnGenerar");
+        grid.innerHTML = "";
+
+        listaCodigos.forEach(c => {
+            const div = document.createElement("div");
+            div.className = "codigo-item" + (usados.includes(c) ? " tachado" : "");
+            div.innerText = c;
+            grid.appendChild(div);
+        });
+
+        // Bloquear botón si aún hay códigos pendientes
+        if (listaCodigos.length > 0 && usados.length < 100) {
+            btn.disabled = true;
+            btn.innerText = `FALTAN ${100 - usados.length} CÓDIGOS`;
+        } else {
+            btn.disabled = false;
+            btn.innerText = "GENERAR 100 CÓDIGOS";
         }
     }
 </script>
