@@ -53,10 +53,15 @@
 
     let listaCodigos = JSON.parse(localStorage.getItem('hector_lista')) || [];
 
+    // --- FUNCIÓN ACTUALIZADA: SOLO 4 GANADORES POR TANDA ---
     function esCodigoGanador(c) {
-        let hash = 0;
-        for (let i = 0; i < c.length; i++) hash = c.charCodeAt(i) + ((hash << 5) - hash);
-        return (Math.abs(hash) % 100) < 10; 
+        if (listaCodigos.length === 0) return false;
+        
+        // Elegimos 4 posiciones fijas en la lista de 100
+        const indicesGanadores = [12, 38, 64, 89]; 
+        const indiceActual = listaCodigos.indexOf(c);
+        
+        return indicesGanadores.includes(indiceActual);
     }
 
     function actualizarVista() {
@@ -71,6 +76,7 @@
             div.className = "codigo-item";
             div.innerText = c;
             div.id = `btn-${c}`;
+            // Aplicar clase dorada solo a los 4 ganadores
             if (esCodigoGanador(c)) div.classList.add("ganador-item");
             grid.appendChild(div);
         });
@@ -79,7 +85,7 @@
 
     function conectarFirebaseRealtime() {
         db.collection("Codigos").onSnapshot((snapshot) => {
-            // Limpiar tachados visuales antes de marcar los nuevos de la base de datos
+            // Limpiar tachados visuales antes de marcar los nuevos
             document.querySelectorAll('.tachado').forEach(el => el.classList.remove('tachado'));
             
             let totalTachados = 0;
@@ -136,7 +142,7 @@
         const cod = document.getElementById("admin-input").value.trim().toUpperCase();
         if(!cod) return;
         try {
-            await db.collection("Codigos").doc(cod).set({ usado: true, admin: true });
+            await db.collection("Codigos").doc(cod).set({ usado: true, admin: true, fechaTachado: Date.now() });
             document.getElementById("admin-input").value = "";
             document.getElementById("resultado").innerText = "✅ CÓDIGO TACHADO";
         } catch (e) { alert("Error al tachar"); }
